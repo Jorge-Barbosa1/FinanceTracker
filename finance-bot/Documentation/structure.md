@@ -6,7 +6,7 @@ This page documents the files and folders that make up the bot.
 
 - `bot.py` - application entry point and startup orchestration
 - `.env.example` - sample environment variables file
-- `.gitignore` - ignores local secrets, cache files, and SQLite databases
+- `.gitignore` - ignores local secrets, cache files, and local database files
 - `requirements.txt` - pinned Python dependencies
 
 ## `cogs/`
@@ -17,7 +17,7 @@ This page documents the files and folders that make up the bot.
 ## `db/`
 
 - `db/__init__.py` - marks the directory as a Python package
-- `db/database.py` - SQLite schema creation and transaction helpers
+- `db/database.py` - Postgres schema creation and transaction helpers
 
 ## `Documentation/`
 
@@ -25,4 +25,4 @@ This page documents the files and folders that make up the bot.
 - `overview.md` - project purpose and behaviour
 - `setup.md` - installation and startup notes
 - `commands.md` - command reference
-- `database.md` - SQLite schema and data access details
+- `database.md` - Postgres schema and data access details

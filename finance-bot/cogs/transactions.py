@@ -26,7 +26,7 @@ def format_currency(amount: float) -> str:
 
 async def send_database_error(interaction: discord.Interaction) -> None:
     """Tell the user that the database is temporarily unavailable."""
-    message = "A base de dados está temporariamente indisponível. Tente novamente daqui a pouco."
+    message = "The database is temporarily unavailable. Please try again in a moment."
     if interaction.response.is_done():
         await interaction.followup.send(message, ephemeral=True)
     else:
@@ -39,23 +39,23 @@ class TransactionsCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="gasto", description="Registar uma despesa")
+    @app_commands.command(name="expense", description="Record an expense")
     @app_commands.describe(
-        valor="Valor da despesa",
-        categoria="Categoria da despesa",
-        descricao="Descrição opcional da despesa",
+        amount="Expense amount",
+        category="Expense category",
+        description="Optional expense description",
     )
-    async def gasto(
+    async def expense(
         self,
         interaction: discord.Interaction,
-        valor: float,
-        categoria: str,
-        descricao: str | None = None,
+        amount: float,
+        category: str,
+        description: str | None = None,
     ) -> None:
         """Register a new expense for the user who ran the command."""
-        if valor <= 0:
+        if amount <= 0:
             await interaction.response.send_message(
-                "O valor tem de ser superior a zero.", ephemeral=True
+                "The amount must be greater than zero.", ephemeral=True
             )
             return
 
@@ -63,33 +63,33 @@ class TransactionsCog(commands.Cog):
             transaction_id = await add_transaction(
                 user_id=interaction.user.id,
                 transaction_type="expense",
-                amount=valor,
-                category=categoria,
-                description=descricao,
+                amount=amount,
+                category=category,
+                description=description,
             )
         except DatabaseError:
             await send_database_error(interaction)
             return
 
         await interaction.response.send_message(
-            f"Despesa registada com sucesso. ID: {transaction_id}", ephemeral=True
+            f"Expense recorded successfully. ID: {transaction_id}", ephemeral=True
         )
 
-    @app_commands.command(name="entrada", description="Registar uma entrada")
+    @app_commands.command(name="income", description="Record income")
     @app_commands.describe(
-        valor="Valor da entrada",
-        descricao="Descrição opcional da entrada",
+        amount="Income amount",
+        description="Optional income description",
     )
-    async def entrada(
+    async def income(
         self,
         interaction: discord.Interaction,
-        valor: float,
-        descricao: str | None = None,
+        amount: float,
+        description: str | None = None,
     ) -> None:
         """Register a new income entry for the user who ran the command."""
-        if valor <= 0:
+        if amount <= 0:
             await interaction.response.send_message(
-                "O valor tem de ser superior a zero.", ephemeral=True
+                "The amount must be greater than zero.", ephemeral=True
             )
             return
 
@@ -97,20 +97,20 @@ class TransactionsCog(commands.Cog):
             transaction_id = await add_transaction(
                 user_id=interaction.user.id,
                 transaction_type="income",
-                amount=valor,
-                category="Receita",
-                description=descricao,
+                amount=amount,
+                category="Income",
+                description=description,
             )
         except DatabaseError:
             await send_database_error(interaction)
             return
 
         await interaction.response.send_message(
-            f"Entrada registada com sucesso. ID: {transaction_id}", ephemeral=True
+            f"Income recorded successfully. ID: {transaction_id}", ephemeral=True
         )
 
-    @app_commands.command(name="resumo", description="Mostrar um resumo financeiro")
-    async def resumo(self, interaction: discord.Interaction) -> None:
+    @app_commands.command(name="summary", description="Show your financial summary")
+    async def summary(self, interaction: discord.Interaction) -> None:
         """Display the user's financial summary in an embed."""
         try:
             summary = await get_summary(interaction.user.id)
@@ -119,31 +119,31 @@ class TransactionsCog(commands.Cog):
             return
 
         embed = discord.Embed(
-            title="Resumo financeiro",
+            title="Financial summary",
             color=discord.Color.blurple(),
         )
         embed.add_field(
-            name="Entradas",
+            name="Income",
             value=format_currency(summary["income"]),
             inline=True,
         )
         embed.add_field(
-            name="Despesas",
+            name="Expenses",
             value=format_currency(summary["expenses"]),
             inline=True,
         )
         embed.add_field(
-            name="Saldo",
+            name="Balance",
             value=format_currency(summary["balance"]),
             inline=True,
         )
-        embed.set_footer(text="Dados visíveis apenas para si.")
+        embed.set_footer(text="Only you can see this data.")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="historico", description="Mostrar o histórico de transações")
-    @app_commands.describe(limit="Número máximo de transações a mostrar")
-    async def historico(
+    @app_commands.command(name="history", description="Show recent transactions")
+    @app_commands.describe(limit="Maximum number of transactions to show")
+    async def history(
         self,
         interaction: discord.Interaction,
         limit: app_commands.Range[int, 1, 25] = 10,
@@ -156,34 +156,34 @@ class TransactionsCog(commands.Cog):
             return
 
         embed = discord.Embed(
-            title=f"Últimas {len(history)} transações",
+            title=f"Latest {len(history)} transactions",
             color=discord.Color.green(),
         )
 
         if not history:
-            embed.description = "Ainda não existem transações registadas."
+            embed.description = "No transactions have been recorded yet."
         else:
             for transaction in history:
-                entry_type = "Entrada" if transaction["type"] == "income" else "Despesa"
-                category = transaction["category"] or "Sem categoria"
-                description = transaction["description"] or "Sem descrição"
+                entry_type = "Income" if transaction["type"] == "income" else "Expense"
+                category = transaction["category"] or "Uncategorized"
+                description = transaction["description"] or "No description"
                 created_at = transaction["created_at"]
                 embed.add_field(
                     name=f"#{transaction['id']} - {entry_type} - {format_currency(transaction['amount'])}",
                     value=(
-                        f"Categoria: {category}\n"
-                        f"Descrição: {description}\n"
-                        f"Data: {created_at}"
+                        f"Category: {category}\n"
+                        f"Description: {description}\n"
+                        f"Date: {created_at}"
                     ),
                     inline=False,
                 )
 
-        embed.set_footer(text="Dados visíveis apenas para si.")
+        embed.set_footer(text="Only you can see this data.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="apagar", description="Apagar uma transação pelo ID")
-    @app_commands.describe(transaction_id="ID da transação a apagar")
-    async def apagar(
+    @app_commands.command(name="delete", description="Delete a transaction by ID")
+    @app_commands.describe(transaction_id="Transaction ID to delete")
+    async def delete(
         self,
         interaction: discord.Interaction,
         transaction_id: int,
@@ -197,13 +197,13 @@ class TransactionsCog(commands.Cog):
 
         if not deleted:
             await interaction.response.send_message(
-                "Não foi encontrada nenhuma transação sua com esse ID.",
+                "No transaction with that ID was found for your account.",
                 ephemeral=True,
             )
             return
 
         await interaction.response.send_message(
-            f"Transação #{transaction_id} apagada com sucesso.", ephemeral=True
+            f"Transaction #{transaction_id} deleted successfully.", ephemeral=True
         )
 
 

@@ -12,4 +12,4 @@ This folder contains the project documentation for the personal finance tracking
 
 ## What is documented
 
-These pages cover the bot entry point, the transactions cog, the SQLite layer, the required environment variables, the dependencies, and the supported Discord slash commands.
+These pages cover the bot entry point, the transactions cog, the Postgres layer, the required environment variables, the dependencies, and the supported Discord slash commands.

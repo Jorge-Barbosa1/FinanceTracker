@@ -1,26 +1,26 @@
 # Slash Commands
 
-All commands are shown to Discord users in Portuguese and all responses are ephemeral.
+All commands are shown to Discord users in English and all responses are ephemeral.
 
-## `/gasto <valor> <categoria> <descricao?>`
+## `/expense <amount> <category> <description?>`
 
-Registers an expense for the current user.
+Records an expense for the current user.
 
-- `valor` must be greater than zero.
-- `categoria` is required.
-- `descricao` is optional.
+- `amount` must be greater than zero.
+- `category` is required.
+- `description` is optional.
 - The transaction is stored with type `expense`.
 
-## `/entrada <valor> <descricao?>`
+## `/income <amount> <description?>`
 
-Registers an income entry for the current user.
+Records income for the current user.
 
-- `valor` must be greater than zero.
-- `descricao` is optional.
+- `amount` must be greater than zero.
+- `description` is optional.
 - The transaction is stored with type `income`.
-- The stored category is `Receita`.
+- The stored category is `Income`.
 
-## `/resumo`
+## `/summary`
 
 Shows a financial summary embed with:
 
@@ -28,7 +28,7 @@ Shows a financial summary embed with:
 - total expenses
 - balance
 
-## `/historico <limit?>`
+## `/history <limit?>`
 
 Shows the latest transactions for the current user in an embed.
 
@@ -36,9 +36,9 @@ Shows the latest transactions for the current user in an embed.
 - `limit` is constrained to the range `1..25`
 - Each entry includes the transaction ID, type, amount, category, description, and creation date
 
-## `/apagar <id>`
+## `/delete <transaction_id>`
 
 Deletes a transaction owned by the current user.
 
-- The bot only deletes rows that match both the transaction ID and the user ID
-- If the ID does not belong to the user, the bot reports that nothing was found
+- The bot only deletes rows that match both the transaction ID and the user ID.
+- If the ID does not belong to the user, the bot reports that nothing was found.
