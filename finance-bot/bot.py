@@ -35,7 +35,7 @@ async def start_health_server() -> web.AppRunner:
     port = int(os.getenv("PORT", "10000"))
     site = web.TCPSite(runner, host="0.0.0.0", port=port)
     await site.start()
-    print(f"Health server listening on 0.0.0.0:{port}")
+    print(f"Health server listening on 0.0.0.0:{port}", flush=True)
 
     return runner
 
@@ -57,8 +57,8 @@ class FinanceBot(commands.Bot):
 
     async def on_ready(self) -> None:
         """Called when the bot is connected and ready."""
-        print(f"Bot online: {self.user} ({self.user.id})")
-        print("Slash commands sincronizados!")
+        print(f"Bot online: {self.user} ({self.user.id})", flush=True)
+        print("Slash commands sincronizados!", flush=True)
 
     async def close(self) -> None:
         """Close Discord and database resources cleanly."""
@@ -76,29 +76,33 @@ class FinanceBot(commands.Bot):
             try:
                 await ping_db()
             except Exception as exc:
-                print(f"Database health check failed: {exc}")
+                print(f"Database health check failed: {exc!r}", flush=True)
 
 
 async def main() -> None:
     """Start the bot using secrets loaded from the environment."""
     load_dotenv()
 
-    print("Starting FinanceTrackerBot...")
+    print("Starting FinanceTrackerBot...", flush=True)
 
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         raise RuntimeError("DISCORD_TOKEN is missing from the environment.")
-    print("DISCORD_TOKEN is configured.")
+    print("DISCORD_TOKEN is configured.", flush=True)
 
     if not os.getenv("DATABASE_URL"):
         raise RuntimeError("DATABASE_URL is missing from the environment.")
-    print("DATABASE_URL is configured.")
+    print("DATABASE_URL is configured.", flush=True)
 
     health_runner = await start_health_server()
     bot = FinanceBot()
 
     try:
+        print("Starting Discord bot...", flush=True)
         await bot.start(token)
+    except Exception as exc:
+        print(f"Fatal startup error: {type(exc).__name__}: {exc!r}", flush=True)
+        raise
     finally:
         await health_runner.cleanup()
         if not bot.is_closed():
