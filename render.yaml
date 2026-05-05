@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: finance-tracker-bot
+    runtime: python
+    plan: free
+    rootDir: finance-bot
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false

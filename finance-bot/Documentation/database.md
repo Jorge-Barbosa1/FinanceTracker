@@ -1,24 +1,24 @@
 # Database Design
 
-The bot uses a local SQLite database stored at `finance.db` in the project root.
+The bot uses a cloud Postgres database configured through `DATABASE_URL`.
 
 ## Table: `transactions`
 
 Fields:
 
-- `id` - autoincrement primary key
+- `id` - identity primary key
 - `user_id` - Discord user ID
 - `type` - either `income` or `expense`
 - `amount` - positive numeric value
 - `category` - transaction category
 - `description` - optional text description
-- `created_at` - timestamp created automatically in local time
+- `created_at` - timestamp created automatically by Postgres
 
 ## Functions
 
 ### `init_db()`
 
-Creates the `transactions` table if it does not already exist.
+Creates the `transactions` table and indexes if they do not already exist.
 
 ### `add_transaction(user_id, transaction_type, amount, category, description=None)`
 
@@ -44,5 +44,5 @@ Deletes a transaction only if it belongs to the given user.
 
 ## Implementation notes
 
-- Database calls are wrapped in `asyncio.to_thread` so the Discord bot does not block the event loop.
+- Database calls use an async Postgres connection pool so the Discord bot does not block the event loop.
 - The table enforces positive amounts and valid transaction types with SQL checks.

@@ -6,18 +6,31 @@ expenses, income entries, summaries, history, and deletion.
 
 from __future__ import annotations
 
-from typing import Any
-
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from db.database import add_transaction, delete_transaction, get_history, get_summary
+from db.database import (
+    DatabaseError,
+    add_transaction,
+    delete_transaction,
+    get_history,
+    get_summary,
+)
 
 
 def format_currency(amount: float) -> str:
     """Format a numeric amount as euros for display in Discord embeds."""
     return f"€{amount:.2f}"
+
+
+async def send_database_error(interaction: discord.Interaction) -> None:
+    """Tell the user that the database is temporarily unavailable."""
+    message = "A base de dados está temporariamente indisponível. Tente novamente daqui a pouco."
+    if interaction.response.is_done():
+        await interaction.followup.send(message, ephemeral=True)
+    else:
+        await interaction.response.send_message(message, ephemeral=True)
 
 
 class TransactionsCog(commands.Cog):
@@ -46,13 +59,18 @@ class TransactionsCog(commands.Cog):
             )
             return
 
-        transaction_id = await add_transaction(
-            user_id=interaction.user.id,
-            transaction_type="expense",
-            amount=valor,
-            category=categoria,
-            description=descricao,
-        )
+        try:
+            transaction_id = await add_transaction(
+                user_id=interaction.user.id,
+                transaction_type="expense",
+                amount=valor,
+                category=categoria,
+                description=descricao,
+            )
+        except DatabaseError:
+            await send_database_error(interaction)
+            return
+
         await interaction.response.send_message(
             f"Despesa registada com sucesso. ID: {transaction_id}", ephemeral=True
         )
@@ -75,13 +93,18 @@ class TransactionsCog(commands.Cog):
             )
             return
 
-        transaction_id = await add_transaction(
-            user_id=interaction.user.id,
-            transaction_type="income",
-            amount=valor,
-            category="Receita",
-            description=descricao,
-        )
+        try:
+            transaction_id = await add_transaction(
+                user_id=interaction.user.id,
+                transaction_type="income",
+                amount=valor,
+                category="Receita",
+                description=descricao,
+            )
+        except DatabaseError:
+            await send_database_error(interaction)
+            return
+
         await interaction.response.send_message(
             f"Entrada registada com sucesso. ID: {transaction_id}", ephemeral=True
         )
@@ -89,7 +112,11 @@ class TransactionsCog(commands.Cog):
     @app_commands.command(name="resumo", description="Mostrar um resumo financeiro")
     async def resumo(self, interaction: discord.Interaction) -> None:
         """Display the user's financial summary in an embed."""
-        summary = await get_summary(interaction.user.id)
+        try:
+            summary = await get_summary(interaction.user.id)
+        except DatabaseError:
+            await send_database_error(interaction)
+            return
 
         embed = discord.Embed(
             title="Resumo financeiro",
@@ -122,7 +149,11 @@ class TransactionsCog(commands.Cog):
         limit: app_commands.Range[int, 1, 25] = 10,
     ) -> None:
         """Show the latest transactions for the current user."""
-        history = await get_history(interaction.user.id, limit)
+        try:
+            history = await get_history(interaction.user.id, limit)
+        except DatabaseError:
+            await send_database_error(interaction)
+            return
 
         embed = discord.Embed(
             title=f"Últimas {len(history)} transações",
@@ -158,7 +189,12 @@ class TransactionsCog(commands.Cog):
         transaction_id: int,
     ) -> None:
         """Delete one of the user's transactions by its database ID."""
-        deleted = await delete_transaction(interaction.user.id, transaction_id)
+        try:
+            deleted = await delete_transaction(interaction.user.id, transaction_id)
+        except DatabaseError:
+            await send_database_error(interaction)
+            return
+
         if not deleted:
             await interaction.response.send_message(
                 "Não foi encontrada nenhuma transação sua com esse ID.",
