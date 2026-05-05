@@ -37,13 +37,21 @@ def _database_url() -> str:
 def _ssl_config() -> ssl.SSLContext | bool | None:
     """Return the SSL config used by asyncpg.
 
-    Supabase requires SSL. Set DATABASE_SSL=false for a local Postgres instance
-    that does not support SSL.
+    Supabase requires SSL. The default "require" mode encrypts the connection
+    without verifying the certificate chain, which matches many managed poolers.
+    Use DATABASE_SSL=verify-full when the platform has the required CA chain.
+    Use DATABASE_SSL=false for a local Postgres instance without SSL.
     """
-    ssl_enabled = os.getenv("DATABASE_SSL", "true").lower()
-    if ssl_enabled in {"0", "false", "no"}:
+    ssl_mode = os.getenv("DATABASE_SSL", "require").lower()
+    if ssl_mode in {"0", "false", "no", "disable"}:
         return False
-    return ssl.create_default_context()
+    if ssl_mode in {"verify", "verify-full", "true"}:
+        return ssl.create_default_context()
+    if ssl_mode in {"1", "require", "yes"}:
+        return ssl._create_unverified_context()
+    raise RuntimeError(
+        "DATABASE_SSL must be one of: require, verify-full, false."
+    )
 
 
 async def _get_pool() -> asyncpg.Pool:

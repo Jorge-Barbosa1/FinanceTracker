@@ -18,6 +18,7 @@ Create a `.env` file in the project root with the following variable:
 
 - `DISCORD_TOKEN` - your Discord bot token
 - `DATABASE_URL` - your Supabase Postgres connection string
+- `DATABASE_SSL` - optional; defaults to `require` for managed poolers
 
 Use Supabase's Session Pooler connection string for production VM hosting unless
 you know the VM has IPv6 access and want to use the direct connection.
@@ -44,6 +45,7 @@ On the VM, keep secrets outside Git in `/etc/finance-bot.env`:
 ```env
 DISCORD_TOKEN=your-discord-bot-token-here
 DATABASE_URL=postgres://postgres.project-ref:your-password@aws-0-region.pooler.supabase.com:5432/postgres
+DATABASE_SSL=require
 ```
 
 Example `systemd` unit:
