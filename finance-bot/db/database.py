@@ -77,6 +77,8 @@ def _to_transaction(row: asyncpg.Record) -> dict[str, Any]:
         "category": row["category"],
         "description": row["description"],
         "created_at": created_at.strftime("%Y-%m-%d %H:%M:%S"),
+        "accounting_month": row["accounting_month"],
+        "accounting_year": row["accounting_year"],
     }
 
 
@@ -103,6 +105,8 @@ async def init_db() -> None:
                 amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
                 category TEXT NOT NULL,
                 description TEXT,
+                accounting_month SMALLINT NOT NULL CHECK (accounting_month BETWEEN 1 AND 12),
+                accounting_year INTEGER NOT NULL CHECK (accounting_year BETWEEN 2000 AND 2100),
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
             """
@@ -111,6 +115,65 @@ async def init_db() -> None:
             """
             CREATE INDEX IF NOT EXISTS idx_transactions_user_created
             ON transactions (user_id, created_at DESC, id DESC)
+            """
+        )
+        await connection.execute(
+            """
+            ALTER TABLE transactions
+            ADD COLUMN IF NOT EXISTS accounting_month SMALLINT
+            """
+        )
+        await connection.execute(
+            """
+            ALTER TABLE transactions
+            ADD COLUMN IF NOT EXISTS accounting_year INTEGER
+            """
+        )
+        await connection.execute(
+            """
+            UPDATE transactions
+            SET
+                accounting_month = EXTRACT(MONTH FROM created_at)::SMALLINT,
+                accounting_year = EXTRACT(YEAR FROM created_at)::INTEGER
+            WHERE accounting_month IS NULL OR accounting_year IS NULL
+            """
+        )
+        await connection.execute(
+            """
+            ALTER TABLE transactions
+            ALTER COLUMN accounting_month SET NOT NULL,
+            ALTER COLUMN accounting_year SET NOT NULL
+            """
+        )
+        await connection.execute(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'transactions_accounting_month_check'
+                ) THEN
+                    ALTER TABLE transactions
+                    ADD CONSTRAINT transactions_accounting_month_check
+                    CHECK (accounting_month BETWEEN 1 AND 12);
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'transactions_accounting_year_check'
+                ) THEN
+                    ALTER TABLE transactions
+                    ADD CONSTRAINT transactions_accounting_year_check
+                    CHECK (accounting_year BETWEEN 2000 AND 2100);
+                END IF;
+            END
+            $$;
+            """
+        )
+        await connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_transactions_user_period_created
+            ON transactions (user_id, accounting_year DESC, accounting_month DESC, created_at DESC, id DESC)
             """
         )
 
@@ -140,18 +203,30 @@ async def add_transaction(
     amount: float,
     category: str,
     description: str | None = None,
+    accounting_month: int | None = None,
+    accounting_year: int | None = None,
 ) -> int:
     """Store a transaction for the given user and return the created ID."""
     if transaction_type not in {"income", "expense"}:
         raise ValueError("transaction_type must be 'income' or 'expense'.")
+    if accounting_month is None or accounting_year is None:
+        raise ValueError("accounting_month and accounting_year are required.")
 
     try:
         pool = await _get_pool()
         async with pool.acquire() as connection:
             transaction_id = await connection.fetchval(
                 """
-                INSERT INTO transactions (user_id, type, amount, category, description)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO transactions (
+                    user_id,
+                    type,
+                    amount,
+                    category,
+                    description,
+                    accounting_month,
+                    accounting_year
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id
                 """,
                 user_id,
@@ -159,13 +234,19 @@ async def add_transaction(
                 amount,
                 category,
                 description,
+                accounting_month,
+                accounting_year,
             )
             return int(transaction_id)
     except _DB_EXCEPTIONS as exc:
         raise DatabaseError("Failed to add transaction.") from exc
 
 
-async def get_summary(user_id: int) -> dict[str, float]:
+async def get_summary(
+    user_id: int,
+    accounting_month: int,
+    accounting_year: int,
+) -> dict[str, float | int]:
     """Return a financial summary for the given user."""
     try:
         pool = await _get_pool()
@@ -173,12 +254,17 @@ async def get_summary(user_id: int) -> dict[str, float]:
             row = await connection.fetchrow(
                 """
                 SELECT
+                    COUNT(*) AS transaction_count,
                     COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income,
                     COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses
                 FROM transactions
                 WHERE user_id = $1
+                    AND accounting_month = $2
+                    AND accounting_year = $3
                 """,
                 user_id,
+                accounting_month,
+                accounting_year,
             )
     except _DB_EXCEPTIONS as exc:
         raise DatabaseError("Failed to fetch summary.") from exc
@@ -186,30 +272,71 @@ async def get_summary(user_id: int) -> dict[str, float]:
     income = _to_float(row["income"] if row else 0)
     expenses = _to_float(row["expenses"] if row else 0)
     return {
+        "transaction_count": int(row["transaction_count"] if row else 0),
         "income": income,
         "expenses": expenses,
         "balance": income - expenses,
     }
 
 
-async def get_history(user_id: int, limit: int = 10) -> list[dict[str, Any]]:
+async def get_history(
+    user_id: int,
+    limit: int = 10,
+    accounting_month: int | None = None,
+    accounting_year: int | None = None,
+) -> list[dict[str, Any]]:
     """Return the most recent transactions for the given user."""
     limit = max(1, min(limit, 25))
 
     try:
         pool = await _get_pool()
         async with pool.acquire() as connection:
-            rows = await connection.fetch(
-                """
-                SELECT id, user_id, type, amount, category, description, created_at
-                FROM transactions
-                WHERE user_id = $1
-                ORDER BY created_at DESC, id DESC
-                LIMIT $2
-                """,
-                user_id,
-                limit,
-            )
+            if accounting_month is None or accounting_year is None:
+                rows = await connection.fetch(
+                    """
+                    SELECT
+                        id,
+                        user_id,
+                        type,
+                        amount,
+                        category,
+                        description,
+                        accounting_month,
+                        accounting_year,
+                        created_at
+                    FROM transactions
+                    WHERE user_id = $1
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT $2
+                    """,
+                    user_id,
+                    limit,
+                )
+            else:
+                rows = await connection.fetch(
+                    """
+                    SELECT
+                        id,
+                        user_id,
+                        type,
+                        amount,
+                        category,
+                        description,
+                        accounting_month,
+                        accounting_year,
+                        created_at
+                    FROM transactions
+                    WHERE user_id = $1
+                        AND accounting_month = $2
+                        AND accounting_year = $3
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT $4
+                    """,
+                    user_id,
+                    accounting_month,
+                    accounting_year,
+                    limit,
+                )
             return [_to_transaction(row) for row in rows]
     except _DB_EXCEPTIONS as exc:
         raise DatabaseError("Failed to fetch history.") from exc

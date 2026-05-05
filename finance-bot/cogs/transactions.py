@@ -6,6 +6,10 @@ expenses, income entries, summaries, history, and deletion.
 
 from __future__ import annotations
 
+from datetime import datetime
+import os
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -17,6 +21,29 @@ from db.database import (
     get_history,
     get_summary,
 )
+
+
+def current_period() -> tuple[int, int]:
+    """Return the default accounting month and year."""
+    timezone_name = os.getenv("APP_TIMEZONE", "Europe/Lisbon")
+    try:
+        timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        timezone = None
+
+    now = datetime.now(timezone)
+    return now.month, now.year
+
+
+def resolve_period(month: int | None, year: int | None) -> tuple[int, int]:
+    """Return the requested accounting period, filling missing values."""
+    current_month, current_year = current_period()
+    return month or current_month, year or current_year
+
+
+def format_period(month: int, year: int) -> str:
+    """Format an accounting period for Discord messages."""
+    return datetime(year, month, 1).strftime("%B %Y")
 
 
 def format_currency(amount: float) -> str:
@@ -44,6 +71,8 @@ class TransactionsCog(commands.Cog):
         amount="Expense amount",
         category="Expense category",
         description="Optional expense description",
+        month="Accounting month for this expense",
+        year="Accounting year for this expense",
     )
     async def expense(
         self,
@@ -51,6 +80,8 @@ class TransactionsCog(commands.Cog):
         amount: float,
         category: str,
         description: str | None = None,
+        month: app_commands.Range[int, 1, 12] = None,
+        year: app_commands.Range[int, 2000, 2100] = None,
     ) -> None:
         """Register a new expense for the user who ran the command."""
         if amount <= 0:
@@ -59,6 +90,7 @@ class TransactionsCog(commands.Cog):
             )
             return
 
+        accounting_month, accounting_year = resolve_period(month, year)
         try:
             transaction_id = await add_transaction(
                 user_id=interaction.user.id,
@@ -66,25 +98,35 @@ class TransactionsCog(commands.Cog):
                 amount=amount,
                 category=category,
                 description=description,
+                accounting_month=accounting_month,
+                accounting_year=accounting_year,
             )
         except DatabaseError:
             await send_database_error(interaction)
             return
 
         await interaction.response.send_message(
-            f"Expense recorded successfully. ID: {transaction_id}", ephemeral=True
+            (
+                f"Expense recorded successfully for {format_period(accounting_month, accounting_year)}. "
+                f"ID: {transaction_id}"
+            ),
+            ephemeral=True,
         )
 
     @app_commands.command(name="income", description="Record income")
     @app_commands.describe(
         amount="Income amount",
         description="Optional income description",
+        month="Accounting month for this income",
+        year="Accounting year for this income",
     )
     async def income(
         self,
         interaction: discord.Interaction,
         amount: float,
         description: str | None = None,
+        month: app_commands.Range[int, 1, 12] = None,
+        year: app_commands.Range[int, 2000, 2100] = None,
     ) -> None:
         """Register a new income entry for the user who ran the command."""
         if amount <= 0:
@@ -93,6 +135,7 @@ class TransactionsCog(commands.Cog):
             )
             return
 
+        accounting_month, accounting_year = resolve_period(month, year)
         try:
             transaction_id = await add_transaction(
                 user_id=interaction.user.id,
@@ -100,26 +143,54 @@ class TransactionsCog(commands.Cog):
                 amount=amount,
                 category="Income",
                 description=description,
+                accounting_month=accounting_month,
+                accounting_year=accounting_year,
             )
         except DatabaseError:
             await send_database_error(interaction)
             return
 
         await interaction.response.send_message(
-            f"Income recorded successfully. ID: {transaction_id}", ephemeral=True
+            (
+                f"Income recorded successfully for {format_period(accounting_month, accounting_year)}. "
+                f"ID: {transaction_id}"
+            ),
+            ephemeral=True,
         )
 
     @app_commands.command(name="summary", description="Show your financial summary")
-    async def summary(self, interaction: discord.Interaction) -> None:
+    @app_commands.describe(
+        month="Accounting month to summarize",
+        year="Accounting year to summarize",
+    )
+    async def summary(
+        self,
+        interaction: discord.Interaction,
+        month: app_commands.Range[int, 1, 12] = None,
+        year: app_commands.Range[int, 2000, 2100] = None,
+    ) -> None:
         """Display the user's financial summary in an embed."""
+        accounting_month, accounting_year = resolve_period(month, year)
         try:
-            summary = await get_summary(interaction.user.id)
+            summary = await get_summary(
+                interaction.user.id,
+                accounting_month,
+                accounting_year,
+            )
         except DatabaseError:
             await send_database_error(interaction)
             return
 
+        period = format_period(accounting_month, accounting_year)
+        if summary["transaction_count"] == 0:
+            await interaction.response.send_message(
+                f"No transactions found for {period}.",
+                ephemeral=True,
+            )
+            return
+
         embed = discord.Embed(
-            title="Financial summary",
+            title=f"Financial summary - {period}",
             color=discord.Color.blurple(),
         )
         embed.add_field(
@@ -142,37 +213,55 @@ class TransactionsCog(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="history", description="Show recent transactions")
-    @app_commands.describe(limit="Maximum number of transactions to show")
+    @app_commands.describe(
+        limit="Maximum number of transactions to show",
+        month="Accounting month to show",
+        year="Accounting year to show",
+    )
     async def history(
         self,
         interaction: discord.Interaction,
         limit: app_commands.Range[int, 1, 25] = 10,
+        month: app_commands.Range[int, 1, 12] = None,
+        year: app_commands.Range[int, 2000, 2100] = None,
     ) -> None:
         """Show the latest transactions for the current user."""
+        accounting_month, accounting_year = resolve_period(month, year)
         try:
-            history = await get_history(interaction.user.id, limit)
+            history = await get_history(
+                interaction.user.id,
+                limit,
+                accounting_month,
+                accounting_year,
+            )
         except DatabaseError:
             await send_database_error(interaction)
             return
 
+        period = format_period(accounting_month, accounting_year)
         embed = discord.Embed(
-            title=f"Latest {len(history)} transactions",
+            title=f"Latest {len(history)} transactions - {period}",
             color=discord.Color.green(),
         )
 
         if not history:
-            embed.description = "No transactions have been recorded yet."
+            embed.description = f"No transactions found for {period}."
         else:
             for transaction in history:
                 entry_type = "Income" if transaction["type"] == "income" else "Expense"
                 category = transaction["category"] or "Uncategorized"
                 description = transaction["description"] or "No description"
                 created_at = transaction["created_at"]
+                transaction_period = format_period(
+                    transaction["accounting_month"],
+                    transaction["accounting_year"],
+                )
                 embed.add_field(
                     name=f"#{transaction['id']} - {entry_type} - {format_currency(transaction['amount'])}",
                     value=(
                         f"Category: {category}\n"
                         f"Description: {description}\n"
+                        f"Month: {transaction_period}\n"
                         f"Date: {created_at}"
                     ),
                     inline=False,

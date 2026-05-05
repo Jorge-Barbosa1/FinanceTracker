@@ -12,6 +12,8 @@ Fields:
 - `amount` - positive numeric value
 - `category` - transaction category
 - `description` - optional text description
+- `accounting_month` - month assigned to the transaction for summaries
+- `accounting_year` - year assigned to the transaction for summaries
 - `created_at` - timestamp created automatically by Postgres
 
 ## Functions
@@ -20,23 +22,25 @@ Fields:
 
 Creates the `transactions` table and indexes if they do not already exist.
 
-### `add_transaction(user_id, transaction_type, amount, category, description=None)`
+### `add_transaction(user_id, transaction_type, amount, category, description=None, accounting_month, accounting_year)`
 
 Inserts a new transaction and returns the created row ID.
 
-### `get_summary(user_id)`
+### `get_summary(user_id, accounting_month, accounting_year)`
 
-Returns a dictionary with:
+Returns a dictionary for the requested accounting month and year with:
 
+- `transaction_count`
 - `income`
 - `expenses`
 - `balance`
 
 The values are calculated from the user's stored rows.
 
-### `get_history(user_id, limit=10)`
+### `get_history(user_id, limit=10, accounting_month=None, accounting_year=None)`
 
-Returns the most recent transactions for the user, ordered from newest to oldest.
+Returns the most recent transactions for the user and requested accounting month,
+ordered from newest to oldest.
 
 ### `delete_transaction(user_id, transaction_id)`
 
