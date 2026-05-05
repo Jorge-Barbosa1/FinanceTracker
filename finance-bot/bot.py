@@ -83,12 +83,16 @@ async def main() -> None:
     """Start the bot using secrets loaded from the environment."""
     load_dotenv()
 
+    print("Starting FinanceTrackerBot...")
+
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         raise RuntimeError("DISCORD_TOKEN is missing from the environment.")
+    print("DISCORD_TOKEN is configured.")
 
     if not os.getenv("DATABASE_URL"):
         raise RuntimeError("DATABASE_URL is missing from the environment.")
+    print("DATABASE_URL is configured.")
 
     health_runner = await start_health_server()
     bot = FinanceBot()
