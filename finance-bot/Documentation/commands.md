@@ -41,6 +41,14 @@ Shows the latest transactions for the requested accounting month in an embed.
 - `month` and `year` default to the current month and year
 - Each entry includes the transaction ID, type, amount, category, description, and creation date
 
+## `/chart <month?> <year?>`
+
+Shows a PNG chart of expense totals by category for the requested accounting month.
+
+- `month` and `year` default to the current month and year
+- The chart is sent as an attachment inside an ephemeral response
+- Only expense transactions are included in the breakdown
+
 ## `/delete <transaction_id>`
 
 Deletes a transaction owned by the current user.

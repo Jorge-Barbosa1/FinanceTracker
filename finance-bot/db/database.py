@@ -342,6 +342,40 @@ async def get_history(
         raise DatabaseError("Failed to fetch history.") from exc
 
 
+async def get_category_totals(
+    user_id: int,
+    accounting_month: int,
+    accounting_year: int,
+) -> list[dict[str, Any]]:
+    """Return total expense amounts grouped by category for a period."""
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT
+                    COALESCE(NULLIF(category, ''), 'Uncategorized') AS category,
+                    COALESCE(SUM(amount), 0) AS total
+                FROM transactions
+                WHERE user_id = $1
+                    AND type = 'expense'
+                    AND accounting_month = $2
+                    AND accounting_year = $3
+                GROUP BY COALESCE(NULLIF(category, ''), 'Uncategorized')
+                ORDER BY total DESC, category ASC
+                """,
+                user_id,
+                accounting_month,
+                accounting_year,
+            )
+            return [
+                {"category": row["category"], "total": _to_float(row["total"])}
+                for row in rows
+            ]
+    except _DB_EXCEPTIONS as exc:
+        raise DatabaseError("Failed to fetch category totals.") from exc
+
+
 async def delete_transaction(user_id: int, transaction_id: int) -> bool:
     """Delete a transaction by ID if it belongs to the user."""
     try:

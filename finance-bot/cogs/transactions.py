@@ -7,16 +7,22 @@ expenses, income entries, summaries, history, and deletion.
 from __future__ import annotations
 
 from datetime import datetime
+from io import BytesIO
 import os
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 from db.database import (
     DatabaseError,
     add_transaction,
+    get_category_totals,
     delete_transaction,
     get_history,
     get_summary,
@@ -49,6 +55,46 @@ def format_period(month: int, year: int) -> str:
 def format_currency(amount: float) -> str:
     """Format a numeric amount as euros for display in Discord embeds."""
     return f"€{amount:.2f}"
+
+
+def build_spending_chart(
+    category_totals: list[dict[str, object]],
+    period: str,
+    accounting_month: int,
+    accounting_year: int,
+) -> discord.File:
+    """Render a PNG chart showing expenses by category."""
+    categories = [str(item["category"]) for item in category_totals]
+    totals = [float(item["total"]) for item in category_totals]
+
+    figure_height = max(4.0, 0.6 * len(categories) + 1.5)
+    figure, axis = plt.subplots(figsize=(10, figure_height))
+
+    bars = axis.barh(categories, totals, color="#4F6BED")
+    axis.set_title(f"Spending by category - {period}")
+    axis.set_xlabel("Amount (€)")
+    axis.invert_yaxis()
+    axis.grid(axis="x", alpha=0.25)
+
+    for bar, amount in zip(bars, totals, strict=False):
+        axis.text(
+            bar.get_width(),
+            bar.get_y() + bar.get_height() / 2,
+            f" €{amount:.2f}",
+            va="center",
+            ha="left",
+            fontsize=9,
+        )
+
+    figure.tight_layout()
+
+    buffer = BytesIO()
+    figure.savefig(buffer, format="png", dpi=200, bbox_inches="tight")
+    plt.close(figure)
+    buffer.seek(0)
+
+    filename = f"spending-chart-{accounting_year}-{accounting_month:02d}.png"
+    return discord.File(buffer, filename=filename)
 
 
 async def send_database_error(interaction: discord.Interaction) -> None:
@@ -269,6 +315,53 @@ class TransactionsCog(commands.Cog):
 
         embed.set_footer(text="Only you can see this data.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="chart", description="Show a spending chart")
+    @app_commands.describe(
+        month="Accounting month to chart",
+        year="Accounting year to chart",
+    )
+    async def chart(
+        self,
+        interaction: discord.Interaction,
+        month: app_commands.Range[int, 1, 12] = None,
+        year: app_commands.Range[int, 2000, 2100] = None,
+    ) -> None:
+        """Show a bar chart of expenses by category for the requested period."""
+        accounting_month, accounting_year = resolve_period(month, year)
+        try:
+            category_totals = await get_category_totals(
+                interaction.user.id,
+                accounting_month,
+                accounting_year,
+            )
+        except DatabaseError:
+            await send_database_error(interaction)
+            return
+
+        period = format_period(accounting_month, accounting_year)
+        if not category_totals:
+            await interaction.response.send_message(
+                f"No expense transactions found for {period}.",
+                ephemeral=True,
+            )
+            return
+
+        file = build_spending_chart(
+            category_totals,
+            period,
+            accounting_month,
+            accounting_year,
+        )
+        embed = discord.Embed(
+            title=f"Monthly spending chart - {period}",
+            description="Spending by category for the selected period.",
+            color=discord.Color.orange(),
+        )
+        embed.set_image(url=f"attachment://{file.filename}")
+        embed.set_footer(text="Only you can see this data.")
+
+        await interaction.response.send_message(embed=embed, file=file, ephemeral=True)
 
     @app_commands.command(name="delete", description="Delete a transaction by ID")
     @app_commands.describe(transaction_id="Transaction ID to delete")

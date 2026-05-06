@@ -8,6 +8,7 @@ FinanceTrackerBot is a personal finance Discord bot that lets a user record inco
 - Groups entries by accounting month and year.
 - Shows monthly summaries with income, expenses, and balance.
 - Lists recent transactions in a Discord embed.
+- Generates a PNG spending chart by category.
 - Deletes transactions owned by the same user.
 - Sends all command responses as ephemeral messages.
 
@@ -36,6 +37,7 @@ The bot currently supports the following slash commands:
 - `/income` - record income with amount, optional description, and optional month/year
 - `/summary` - show a monthly financial summary
 - `/history` - show recent transactions for a month
+- `/chart` - show a monthly spending chart as a PNG attachment
 - `/delete` - remove a transaction by ID if it belongs to the current user
 
 The bot also starts a small HTTP health server so Render can keep the service alive and check whether it is healthy.
