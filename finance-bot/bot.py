@@ -50,10 +50,17 @@ class FinanceBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         """Prepare the bot before it connects to Discord."""
-        await init_db()
-        await self.load_extension("cogs.transactions")
-        await self.tree.sync()
-        self._db_health_task = asyncio.create_task(self._keep_database_alive())
+        try:
+            await init_db()
+            print("Database initialized.", flush=True)
+            await self.load_extension("cogs.transactions")
+            print("Cog 'cogs.transactions' loaded.", flush=True)
+            await self.tree.sync()
+            print("Slash commands synced with Discord.", flush=True)
+            self._db_health_task = asyncio.create_task(self._keep_database_alive())
+        except Exception as exc:
+            print(f"Error in setup_hook: {type(exc).__name__}: {exc!r}", flush=True)
+            raise
 
     async def on_ready(self) -> None:
         """Called when the bot is connected and ready."""
