@@ -127,6 +127,45 @@ class TransactionsCog(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
+    @app_commands.command(name="help", description="Show FinanceTrackerBot help")
+    async def help(self, interaction: discord.Interaction) -> None:
+        """Show a compact guide for the bot's slash commands."""
+        embed = discord.Embed(
+            title="FinanceTrackerBot help",
+            description=(
+                "Track income and expenses, review monthly totals, and inspect "
+                "recent transactions directly from Discord."
+            ),
+            color=discord.Color.blurple(),
+        )
+        embed.add_field(
+            name="Record transactions",
+            value=(
+                "`/expense amount:12.50 category:Food description:Lunch` - record an expense\n"
+                "`/income amount:1200 description:Salary` - record income"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Review your finances",
+            value=(
+                "`/summary` - show monthly income, expenses, balance, and top categories\n"
+                "`/history type:expense category:Food` - show recent transactions with optional filters\n"
+                "`/chart` - generate a spending chart by category"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Manage entries",
+            value="`/delete transaction_id:123` - delete one of your transactions by ID",
+            inline=False,
+        )
+        embed.set_footer(
+            text="Only you can see bot responses. Month and year are optional unless you need a specific period."
+        )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     @app_commands.command(name="expense", description="Record an expense")
     @app_commands.describe(
         amount="Expense amount",

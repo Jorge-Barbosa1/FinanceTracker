@@ -2,6 +2,14 @@
 
 All commands are shown to Discord users in English and all responses are ephemeral.
 
+## `/help`
+
+Shows a compact help embed with the available commands and short examples.
+
+- Does not query the database.
+- Includes examples for recording expenses, recording income, and filtering history.
+- Reminds users that responses are private and that `month` and `year` are optional.
+
 ## `/expense <amount> <category> <description?> <month?> <year?>`
 
 Records an expense for the current user.
