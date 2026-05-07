@@ -31,15 +31,7 @@ Add `/edit <id> <amount?> <category?> <description?>` so users can fix a transac
 - Validate `amount > 0` and block edits on another user's transactions.
 - Keep the response ephemeral for consistency.
 
-## Medium impact, medium effort
-
-### Filters in /history
-
-Allow filters by type or category, for example `/history category:food`.
-
-- Add optional parameters to the slash command.
-- Extend the SQL query with safe dynamic filters.
-- Keep the current pagination or limit so the embed stays manageable.
+## Done
 
 ### Top categories in /summary
 
@@ -48,6 +40,23 @@ Show a breakdown of expenses by category in the existing embed.
 - Run an aggregated query by category for the same period.
 - Reuse the current embed and add an extra section with the main values.
 - Sort by highest spending to surface the biggest costs quickly.
+
+### Monthly charts
+
+Generate a PNG with `matplotlib` and send the chart as an attachment.
+
+- Reuse data from `summary` and/or `history`.
+- Create a simple bar chart by category or by month.
+- Store the image in memory with `BytesIO` and send it through Discord.
+- This feature improves presentation a lot without changing the database too much.
+
+### Filters in /history
+
+Allow filters by type or category, for example `/history category:food`.
+
+- Add optional parameters to the slash command.
+- Extend the SQL query with safe dynamic filters.
+- Keep the current pagination or limit so the embed stays manageable.
 
 ## High impact, more effort
 
@@ -59,12 +68,3 @@ Support rent, salary, and subscriptions with a `recurring_transactions` table an
 - Store frequency, start date, and default category.
 - Add a worker/job that runs daily and inserts due transactions.
 - Record executions to avoid duplicates.
-
-### Monthly charts
-
-Generate a PNG with `matplotlib` and send the chart as an attachment.
-
-- Reuse data from `summary` and/or `history`.
-- Create a simple bar chart by category or by month.
-- Store the image in memory with `BytesIO` and send it through Discord.
-- This feature improves presentation a lot without changing the database too much.

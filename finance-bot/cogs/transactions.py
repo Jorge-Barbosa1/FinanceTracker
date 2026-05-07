@@ -57,6 +57,21 @@ def format_currency(amount: float) -> str:
     return f"€{amount:.2f}"
 
 
+def format_history_filters(
+    transaction_type: str | None,
+    category: str | None,
+) -> str | None:
+    """Format active history filters for display in Discord embeds."""
+    filters = []
+    if transaction_type:
+        filters.append(
+            f"Type: {'Income' if transaction_type == 'income' else 'Expense'}"
+        )
+    if category:
+        filters.append(f"Category: {category}")
+    return "Filters: " + ", ".join(filters) if filters else None
+
+
 def build_spending_chart(
     category_totals: list[dict[str, object]],
     period: str,
@@ -235,6 +250,16 @@ class TransactionsCog(commands.Cog):
             )
             return
 
+        try:
+            category_totals = await get_category_totals(
+                interaction.user.id,
+                accounting_month,
+                accounting_year,
+            )
+        except DatabaseError:
+            await send_database_error(interaction)
+            return
+
         embed = discord.Embed(
             title=f"Financial summary - {period}",
             color=discord.Color.blurple(),
@@ -254,6 +279,34 @@ class TransactionsCog(commands.Cog):
             value=format_currency(summary["balance"]),
             inline=True,
         )
+
+        if category_totals:
+            top_categories = category_totals[:5]
+            category_lines = []
+            total_expenses = float(summary["expenses"])
+            for item in top_categories:
+                category_total = float(item["total"])
+                share = (
+                    (category_total / total_expenses) * 100
+                    if total_expenses > 0
+                    else 0
+                )
+                category_lines.append(
+                    f"{item['category']}: {format_currency(category_total)} ({share:.1f}%)"
+                )
+
+            embed.add_field(
+                name="Top expense categories",
+                value="\n".join(category_lines),
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="Top expense categories",
+                value="No expenses recorded for this period.",
+                inline=False,
+            )
+
         embed.set_footer(text="Only you can see this data.")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -263,6 +316,15 @@ class TransactionsCog(commands.Cog):
         limit="Maximum number of transactions to show",
         month="Accounting month to show",
         year="Accounting year to show",
+        transaction_type="Only show income or expense transactions",
+        category="Only show transactions from this category",
+    )
+    @app_commands.rename(transaction_type="type")
+    @app_commands.choices(
+        transaction_type=[
+            app_commands.Choice(name="Income", value="income"),
+            app_commands.Choice(name="Expense", value="expense"),
+        ],
     )
     async def history(
         self,
@@ -270,15 +332,24 @@ class TransactionsCog(commands.Cog):
         limit: app_commands.Range[int, 1, 25] = 10,
         month: app_commands.Range[int, 1, 12] = None,
         year: app_commands.Range[int, 2000, 2100] = None,
+        transaction_type: app_commands.Choice[str] | None = None,
+        category: str | None = None,
     ) -> None:
         """Show the latest transactions for the current user."""
         accounting_month, accounting_year = resolve_period(month, year)
+        selected_type = transaction_type.value if transaction_type else None
+        selected_category = category.strip() if category else None
+        if selected_category == "":
+            selected_category = None
+
         try:
             history = await get_history(
                 interaction.user.id,
                 limit,
                 accounting_month,
                 accounting_year,
+                transaction_type=selected_type,
+                category=selected_category,
             )
         except DatabaseError:
             await send_database_error(interaction)
@@ -289,9 +360,20 @@ class TransactionsCog(commands.Cog):
             title=f"Latest {len(history)} transactions - {period}",
             color=discord.Color.green(),
         )
+        filter_description = format_history_filters(
+            selected_type,
+            selected_category,
+        )
+        if filter_description:
+            embed.description = filter_description
 
         if not history:
-            embed.description = f"No transactions found for {period}."
+            empty_message = f"No transactions found for {period}."
+            embed.description = (
+                f"{filter_description}\n{empty_message}"
+                if filter_description
+                else empty_message
+            )
         else:
             for transaction in history:
                 entry_type = "Income" if transaction["type"] == "income" else "Expense"

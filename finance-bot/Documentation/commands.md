@@ -30,15 +30,18 @@ or year is provided, the current month and year are used.
 - total income
 - total expenses
 - balance
+- top expense categories by spending
 - If the user has no transactions in that month, the bot reports that nothing was found.
 
-## `/history <limit?> <month?> <year?>`
+## `/history <limit?> <month?> <year?> <type?> <category?>`
 
 Shows the latest transactions for the requested accounting month in an embed.
 
 - `limit` defaults to `10`
 - `limit` is constrained to the range `1..25`
 - `month` and `year` default to the current month and year
+- `type` can be `income` or `expense`
+- `category` filters by exact category name, case-insensitively
 - Each entry includes the transaction ID, type, amount, category, description, and creation date
 
 ## `/chart <month?> <year?>`

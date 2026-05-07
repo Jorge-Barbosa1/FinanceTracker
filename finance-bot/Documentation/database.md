@@ -37,10 +37,16 @@ Returns a dictionary for the requested accounting month and year with:
 
 The values are calculated from the user's stored rows.
 
-### `get_history(user_id, limit=10, accounting_month=None, accounting_year=None)`
+### `get_history(user_id, limit=10, accounting_month=None, accounting_year=None, transaction_type=None, category=None)`
 
 Returns the most recent transactions for the user and requested accounting month,
-ordered from newest to oldest.
+ordered from newest to oldest. Optional filters can limit results by transaction
+type or exact category name.
+
+### `get_category_totals(user_id, accounting_month, accounting_year)`
+
+Returns expense totals grouped by category for the requested accounting month,
+ordered by highest spending first.
 
 ### `delete_transaction(user_id, transaction_id)`
 

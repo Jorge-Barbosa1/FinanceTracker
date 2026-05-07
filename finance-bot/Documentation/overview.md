@@ -4,7 +4,7 @@ This project is a personal finance tracking Discord bot built with Python 3.12, 
 
 ## Purpose
 
-The bot lets a user record income and expenses, review a financial summary, inspect recent transactions, and delete entries by ID.
+The bot lets a user record income and expenses, review a financial summary with top expense categories, inspect recent transactions, generate spending charts, and delete entries by ID.
 
 ## Main parts
 
@@ -16,5 +16,6 @@ The bot lets a user record income and expenses, review a financial summary, insp
 
 - All command responses are sent with `ephemeral=True`.
 - Summary and history are presented using Discord embeds.
+- Spending charts are generated as PNG attachments.
 - Transaction data is stored in Postgres.
 - The bot token is read from a `.env` file through `python-dotenv`.

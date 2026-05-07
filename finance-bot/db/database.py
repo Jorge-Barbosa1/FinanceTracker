@@ -284,9 +284,14 @@ async def get_history(
     limit: int = 10,
     accounting_month: int | None = None,
     accounting_year: int | None = None,
+    transaction_type: str | None = None,
+    category: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return the most recent transactions for the given user."""
     limit = max(1, min(limit, 25))
+    if transaction_type is not None and transaction_type not in {"income", "expense"}:
+        raise ValueError("transaction_type must be 'income', 'expense', or None.")
+    category_filter = category.strip() if category and category.strip() else None
 
     try:
         pool = await _get_pool()
@@ -306,10 +311,14 @@ async def get_history(
                         created_at
                     FROM transactions
                     WHERE user_id = $1
+                        AND ($2::text IS NULL OR type = $2)
+                        AND ($3::text IS NULL OR LOWER(category) = LOWER($3))
                     ORDER BY created_at DESC, id DESC
-                    LIMIT $2
+                    LIMIT $4
                     """,
                     user_id,
+                    transaction_type,
+                    category_filter,
                     limit,
                 )
             else:
@@ -329,12 +338,16 @@ async def get_history(
                     WHERE user_id = $1
                         AND accounting_month = $2
                         AND accounting_year = $3
+                        AND ($4::text IS NULL OR type = $4)
+                        AND ($5::text IS NULL OR LOWER(category) = LOWER($5))
                     ORDER BY created_at DESC, id DESC
-                    LIMIT $4
+                    LIMIT $6
                     """,
                     user_id,
                     accounting_month,
                     accounting_year,
+                    transaction_type,
+                    category_filter,
                     limit,
                 )
             return [_to_transaction(row) for row in rows]
